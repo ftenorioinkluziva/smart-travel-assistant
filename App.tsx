@@ -16,6 +16,7 @@ const NAV_ITEMS: { mode: AppMode; label: string; icon: string; description: stri
 ];
 
 const App: React.FC = () => {
+  console.log("[v0] App component rendering");
   const [appMode, setAppMode] = useState<AppMode>('chat');
   const [geolocation, setGeolocation] = useState<GeolocationPosition | null>(null);
   const [geolocationError, setGeolocationError] = useState<string | null>(null);
@@ -146,14 +147,14 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const handleSendSearchQuery = useCallback(async () => {
-    if (!searchQuery.trim()) return;
+  const handleSendSearchQuery = useCallback(async (query: string) => {
+    if (!query.trim()) return;
     const userMessageId = `user-search-${Date.now()}`;
-    setSearchResults((prev) => [...prev, { id: userMessageId, sender: 'user', text: searchQuery }]);
+    setSearchResults((prev) => [...prev, { id: userMessageId, sender: 'user', text: query }]);
     setSearchLoading(true);
     setSearchError(null);
     try {
-      const response = await sendSearchQuery(searchQuery);
+      const response = await sendSearchQuery(query);
       setSearchResults((prev) => [...prev, { id: `gemini-search-${Date.now()}`, sender: 'gemini', text: response.text, groundingChunks: response.groundingChunks }]);
     } catch (e: any) {
       setSearchError(e.message || "Falha na pesquisa.");
@@ -162,18 +163,18 @@ const App: React.FC = () => {
       setSearchLoading(false);
       setSearchQuery('');
     }
-  }, [searchQuery]);
+  }, []);
 
-  const handleSendMapsQuery = useCallback(async () => {
-    if (!mapsQuery.trim()) return;
+  const handleSendMapsQuery = useCallback(async (query: string) => {
+    if (!query.trim()) return;
     if (!geolocation && !geolocationError) { setMapsError("Obtendo sua localizacao..."); return; }
     if (geolocationError) { setMapsError(geolocationError); return; }
     const userMessageId = `user-maps-${Date.now()}`;
-    setMapsResults((prev) => [...prev, { id: userMessageId, sender: 'user', text: mapsQuery }]);
+    setMapsResults((prev) => [...prev, { id: userMessageId, sender: 'user', text: query }]);
     setMapsLoading(true);
     setMapsError(null);
     try {
-      const response = await sendMapsQuery(mapsQuery, geolocation || undefined);
+      const response = await sendMapsQuery(query, geolocation || undefined);
       setMapsResults((prev) => [...prev, { id: `gemini-maps-${Date.now()}`, sender: 'gemini', text: response.text, groundingChunks: response.groundingChunks }]);
     } catch (e: any) {
       setMapsError(e.message || "Falha na consulta de mapas.");
@@ -182,15 +183,16 @@ const App: React.FC = () => {
       setMapsLoading(false);
       setMapsQuery('');
     }
-  }, [mapsQuery, geolocation, geolocationError]);
+  }, [geolocation, geolocationError]);
 
-  const handleSendFastResponse = useCallback(async () => {
-    if (!fastResponseQuery.trim()) return;
+  const handleSendFastResponse = useCallback(async (query?: string) => {
+    const q = query || fastResponseQuery;
+    if (!q.trim()) return;
     setFastResponseResult('');
     setFastResponseLoading(true);
     setFastResponseError(null);
     try {
-      const response = await sendFastResponse(fastResponseQuery);
+      const response = await sendFastResponse(q);
       setFastResponseResult(response);
     } catch (e: any) {
       setFastResponseError(e.message || "Falha na resposta rapida.");
@@ -240,7 +242,7 @@ const App: React.FC = () => {
           <FeaturePanel title="Pesquisa Web" description="Informacoes atualizadas da web para sua viagem.">
             <ChatInterface
               messages={searchResults}
-              onSendMessage={(msg) => { setSearchQuery(msg); handleSendSearchQuery(); }}
+              onSendMessage={(msg) => handleSendSearchQuery(msg)}
               loading={searchLoading}
               errorMessage={searchError}
               placeholder="Pesquise sobre eventos, noticias de viagem..."
@@ -253,7 +255,7 @@ const App: React.FC = () => {
           <FeaturePanel title="Mapas e Locais" description="Encontre lugares e informacoes do seu destino.">
             <ChatInterface
               messages={mapsResults}
-              onSendMessage={(msg) => { setMapsQuery(msg); handleSendMapsQuery(); }}
+              onSendMessage={(msg) => handleSendMapsQuery(msg)}
               loading={mapsLoading}
               errorMessage={mapsError || geolocationError}
               placeholder="Encontre restaurantes, hoteis ou pontos turisticos."

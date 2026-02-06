@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ChatMessage } from '../types';
 import { marked } from 'marked';
 import TypingIndicator from './TypingIndicator';
+
+// Configure marked for synchronous operation
+marked.setOptions({ async: false });
 
 interface ChatBubbleProps {
   message: ChatMessage;
@@ -22,6 +25,13 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
         borderRadius: 'var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-sm)',
       };
 
+  const parsedHtml = useMemo(() => {
+    if (!isUser && message.text) {
+      return marked.parse(message.text) as string;
+    }
+    return '';
+  }, [isUser, message.text]);
+
   const renderContent = () => {
     if (!isUser) {
       if (message.isStreaming && !message.text) {
@@ -30,7 +40,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
         return (
           <>
             <div
-              dangerouslySetInnerHTML={{ __html: marked.parse(message.text) }}
+              dangerouslySetInnerHTML={{ __html: parsedHtml }}
               className="prose-travel"
             />
             <TypingIndicator />
@@ -39,7 +49,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
       } else {
         return (
           <div
-            dangerouslySetInnerHTML={{ __html: marked.parse(message.text || '') }}
+            dangerouslySetInnerHTML={{ __html: parsedHtml }}
             className="prose-travel"
           />
         );
