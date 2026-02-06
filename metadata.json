@@ -1,0 +1,7 @@
+{
+  "name": "Smart Travel Assistant",
+  "description": "An intelligent personal travel assistant to plan your perfect vacation, leveraging Google Gemini models for up-to-date information, mapping data, and conversational AI.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
