@@ -1,7 +1,7 @@
 import React from 'react';
 import { ChatMessage } from '../types';
-import { marked } from 'marked'; // For rendering markdown
-import TypingIndicator from './TypingIndicator'; // Import the new TypingIndicator
+import { marked } from 'marked';
+import TypingIndicator from './TypingIndicator';
 
 interface ChatBubbleProps {
   message: ChatMessage;
@@ -9,62 +9,101 @@ interface ChatBubbleProps {
 
 const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
   const isUser = message.sender === 'user';
-  const bubbleClasses = isUser
-    ? 'bg-indigo-500 text-white self-end rounded-br-none'
-    : 'bg-gray-200 text-gray-800 self-start rounded-bl-none';
+
+  const bubbleStyle: React.CSSProperties = isUser
+    ? {
+        backgroundColor: 'var(--color-user-bubble)',
+        color: 'var(--color-text-inverse)',
+        borderRadius: 'var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg)',
+      }
+    : {
+        backgroundColor: 'var(--color-ai-bubble)',
+        color: 'var(--color-text)',
+        borderRadius: 'var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-sm)',
+      };
 
   const renderContent = () => {
-    // Only render markdown for Gemini messages
     if (!isUser) {
-      // If streaming and no text has arrived yet, show just the typing indicator
       if (message.isStreaming && !message.text) {
         return <TypingIndicator />;
-      } 
-      // If streaming and text is present, render the text and then the typing indicator
-      else if (message.isStreaming && message.text) {
+      } else if (message.isStreaming && message.text) {
         return (
           <>
-            <div dangerouslySetInnerHTML={{ __html: marked.parse(message.text) }} className="prose prose-sm max-w-none" />
+            <div
+              dangerouslySetInnerHTML={{ __html: marked.parse(message.text) }}
+              className="prose-travel"
+            />
             <TypingIndicator />
           </>
         );
-      }
-      // If not streaming (final message), just render the markdown
-      else {
-        return <div dangerouslySetInnerHTML={{ __html: marked.parse(message.text || '') }} className="prose prose-sm max-w-none" />;
+      } else {
+        return (
+          <div
+            dangerouslySetInnerHTML={{ __html: marked.parse(message.text || '') }}
+            className="prose-travel"
+          />
+        );
       }
     }
-    // User messages are plain text and don't stream
-    return message.text;
+    return <span style={{ lineHeight: '1.6' }}>{message.text}</span>;
   };
 
   return (
-    <div className={`flex flex-col mb-4 max-w-[80%] ${isUser ? 'items-end' : 'items-start'}`}>
+    <div
+      className={`flex flex-col mb-3 max-w-[85%] md:max-w-[75%] ${
+        isUser ? 'items-end ml-auto' : 'items-start mr-auto'
+      }`}
+    >
+      {!isUser && (
+        <span
+          className="text-xs font-medium mb-1 ml-1"
+          style={{ color: 'var(--color-primary)' }}
+        >
+          Assistente
+        </span>
+      )}
       <div
-        className={`relative px-4 py-2 rounded-lg shadow-md ${bubbleClasses} transition-all duration-300 ease-in-out`}
+        className="px-4 py-3 text-sm leading-relaxed"
+        style={{
+          ...bubbleStyle,
+          boxShadow: 'var(--shadow-sm)',
+        }}
       >
         {renderContent()}
-        {/* The TypingIndicator is now managed within renderContent, removing the old streaming span */}
       </div>
       {message.groundingChunks && message.groundingChunks.length > 0 && (
-        <div className="mt-1 text-xs text-gray-600">
-          <p className="font-semibold">Fontes:</p>
-          <ul className="list-disc list-inside">
+        <div className="mt-2 ml-1">
+          <p
+            className="text-xs font-semibold mb-1"
+            style={{ color: 'var(--color-text-muted)' }}
+          >
+            Fontes
+          </p>
+          <div className="flex flex-wrap gap-1.5">
             {message.groundingChunks.map((chunk, index) => {
               const uri = chunk.web?.uri || chunk.maps?.uri;
               const title = chunk.web?.title || chunk.maps?.title || 'Link';
               if (uri) {
                 return (
-                  <li key={index}>
-                    <a href={uri} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
-                      {title}
-                    </a>
-                  </li>
+                  <a
+                    key={index}
+                    href={uri}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center text-xs px-2 py-1 rounded-full transition-colors duration-150"
+                    style={{
+                      backgroundColor: 'var(--color-bg-subtle)',
+                      color: 'var(--color-primary)',
+                      border: '1px solid var(--color-border-light)',
+                    }}
+                  >
+                    {title}
+                  </a>
                 );
               }
               return null;
             })}
-          </ul>
+          </div>
         </div>
       )}
     </div>

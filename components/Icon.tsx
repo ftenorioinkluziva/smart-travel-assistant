@@ -6,46 +6,134 @@ interface IconProps {
 }
 
 const Icon: React.FC<IconProps> = ({ name, className = 'w-6 h-6' }) => {
-  let svgPath: React.ReactNode;
+  let svgContent: React.ReactNode;
 
   switch (name) {
-    case 'google':
-      svgPath = (
-        <path d="M22.5 11.962v.077c0 7.85-5.32 11.238-11.838 11.238-6.914 0-12.162-5.337-12.162-12.012C.5 5.25 5.748 0 12.162 0c3.55 0 6.643 1.258 8.945 3.39L17.766 6.61c-1.396-1.306-3.72-2.315-5.604-2.315-4.443 0-7.857 3.284-7.857 7.702 0 4.417 3.414 7.702 7.857 7.702 4.095 0 6.945-2.906 7.234-7.46H12.162V9.06h10.338l.001 2.902z" />
-      );
-      break;
-    case 'google_pin':
-      svgPath = (
-        <path fillRule="evenodd" d="M11.5 0a7 7 0 00-7 7c0 4.025 4.5 9.175 7 13.525C14 16.175 18.5 11.025 18.5 7a7 7 0 00-7-7zm0 9.5a2.5 2.1 0 100-4.2 2.5 2.1 0 000 4.2z" clipRule="evenodd" />
+    case 'travel':
+      // Globe/compass icon
+      svgContent = (
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.5}
+          d="M12 21a9 9 0 100-18 9 9 0 000 18zm0-18c2.5 3 4 6.5 4 9s-1.5 6-4 9m0-18c-2.5 3-4 6.5-4 9s1.5 6 4 9M3 12h18"
+          fill="none"
+          stroke="currentColor"
+        />
       );
       break;
     case 'voice_chat':
-      svgPath = (
-        <path d="M20.5 2h-17C2.673 2 2 2.673 2 3.5v12c0 .827.673 1.5 1.5 1.5h17c.827 0 1.5-.673 1.5-1.5v-12c0-.827-.673-1.5-1.5-1.5zm-5 11.5c0 .276-.224.5-.5.5h-5a.5.5 0 01-.5-.5v-6c0-.276.224-.5.5-.5h5c.276 0 .5.224.5.5v6zm1.5-12.5v-1c0-.276-.224-.5-.5-.5h-1a.5.5 0 00-.5.5v1h-7v-1c0-.276-.224-.5-.5-.5h-1a.5.5 0 00-.5.5v1H2.5c-.276 0-.5.224-.5.5v1c0 .276.224.5.5.5h19c.276 0 .5-.224.5-.5v-1c0-.276-.224-.5-.5-.5zM7.5 15.5H3.5c-.827 0-1.5-.673-1.5-1.5V6.5h20V14c0 .827-.673 1.5-1.5 1.5h-4l-3 3-3-3H7.5z" />
+      // Chat bubble icon
+      svgContent = (
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.5}
+          d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.068.157 2.148.279 3.238.364.466.037.893.281 1.153.671L12 20.25l2.652-3.228c.26-.39.687-.634 1.153-.67 1.09-.086 2.17-.208 3.238-.365 1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"
+          fill="none"
+          stroke="currentColor"
+        />
+      );
+      break;
+    case 'google':
+      // Search/magnifying glass icon
+      svgContent = (
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.5}
+          d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+          fill="none"
+          stroke="currentColor"
+        />
+      );
+      break;
+    case 'google_pin':
+      // Map pin icon
+      svgContent = (
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.5}
+          d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"
+          fill="none"
+          stroke="currentColor"
+        />
       );
       break;
     case 'bolt':
-      svgPath = (
-        <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 6a.75.75 0 00-1.5 0v6.75a.75.75 0 001.5 0V6zm-.75 10.5a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+      // Lightning bolt icon
+      svgContent = (
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.5}
+          d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"
+          fill="none"
+          stroke="currentColor"
+        />
       );
       break;
-    case 'travel':
-      svgPath = (
-        <path d="M15.75 11.5a.75.75 0 01.75-.75h2.5a.75.75 0 010 1.5h-2.5a.75.75 0 01-.75-.75zM14.25 9.5a.75.75 0 01.75-.75h3.25a.75.75 0 010 1.5h-3.25a.75.75 0 01-.75-.75zM15 7.5a.75.75 001.75-.75h3a.75.75 001.5h-3a.75.75 001-.75zM17.25 5.5a.75.75 001.75-.75h.5a.75.75 001.5h-.5a.75.75 001-.75zM22.5 16.5a.75.75 0 01-.75.75h-16.5a.75.75 0 01-.75-.75v-12a.75.75 0 01.75-.75h16.5a.75.75 0 01.75.75v12zM21 5.5H4.5V15h16.5V5.5zM12 18.5a.75.75 0 01-.75.75h-7.5a.75.75 0 010-1.5h7.5a.75.75 0 01.75.75z" />
+    case 'mic':
+      svgContent = (
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.5}
+          d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z"
+          fill="none"
+          stroke="currentColor"
+        />
+      );
+      break;
+    case 'send':
+      svgContent = (
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.5}
+          d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"
+          fill="none"
+          stroke="currentColor"
+        />
+      );
+      break;
+    case 'clear':
+      svgContent = (
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.5}
+          d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+          fill="none"
+          stroke="currentColor"
+        />
+      );
+      break;
+    case 'history':
+      svgContent = (
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.5}
+          d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"
+          fill="none"
+          stroke="currentColor"
+        />
       );
       break;
     default:
-      svgPath = null;
+      svgContent = null;
   }
 
   return (
     <svg
       className={className}
-      fill="currentColor"
       viewBox="0 0 24 24"
       xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
     >
-      {svgPath}
+      {svgContent}
     </svg>
   );
 };

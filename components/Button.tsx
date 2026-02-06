@@ -16,37 +16,68 @@ const Button: React.FC<ButtonProps> = ({
   disabled,
   ...props
 }) => {
-  const baseStyles = 'font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200';
-  
-  const variantStyles = {
-    primary: 'bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500',
-    secondary: 'bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-400',
-    outline: 'border border-indigo-500 text-indigo-600 hover:bg-indigo-50 focus:ring-indigo-500',
-    ghost: 'text-indigo-600 hover:bg-indigo-50 focus:ring-indigo-500',
+  const baseStyles =
+    'inline-flex items-center justify-center font-medium transition-all duration-200 focus-ring';
+
+  const variantStyles: Record<string, string> = {
+    primary:
+      'text-white hover:opacity-90 active:scale-[0.98]',
+    secondary:
+      'hover:opacity-80 active:scale-[0.98]',
+    outline:
+      'border hover:opacity-80 active:scale-[0.98]',
+    ghost:
+      'hover:opacity-70 active:scale-[0.98]',
   };
 
-  const sizeStyles = {
-    sm: 'px-3 py-1.5 text-sm',
-    md: 'px-4 py-2 text-base',
-    lg: 'px-5 py-3 text-lg',
+  const variantInlineStyles: Record<string, React.CSSProperties> = {
+    primary: {
+      backgroundColor: 'var(--color-primary)',
+      borderRadius: 'var(--radius-md)',
+    },
+    secondary: {
+      backgroundColor: 'var(--color-bg-subtle)',
+      color: 'var(--color-text)',
+      borderRadius: 'var(--radius-md)',
+    },
+    outline: {
+      backgroundColor: 'transparent',
+      borderColor: 'var(--color-border)',
+      color: 'var(--color-primary)',
+      borderRadius: 'var(--radius-md)',
+    },
+    ghost: {
+      backgroundColor: 'transparent',
+      color: 'var(--color-text-secondary)',
+      borderRadius: 'var(--radius-md)',
+    },
   };
 
-  const disabledStyles = 'opacity-50 cursor-not-allowed';
+  const sizeStyles: Record<string, string> = {
+    sm: 'px-3 py-1.5 text-xs gap-1.5',
+    md: 'px-4 py-2 text-sm gap-2',
+    lg: 'px-5 py-2.5 text-base gap-2',
+  };
+
+  const disabledStyles = 'opacity-40 cursor-not-allowed pointer-events-none';
 
   return (
     <button
       className={`${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${
         disabled || loading ? disabledStyles : ''
       } ${className || ''}`}
+      style={variantInlineStyles[variant]}
       disabled={disabled || loading}
       {...props}
     >
       {loading ? (
         <svg
-          className="animate-spin h-5 w-5 text-white mx-auto"
+          className="animate-spin h-4 w-4"
+          style={{ color: variant === 'primary' ? 'var(--color-text-inverse)' : 'var(--color-primary)' }}
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
+          aria-hidden="true"
         >
           <circle
             className="opacity-25"
@@ -55,12 +86,12 @@ const Button: React.FC<ButtonProps> = ({
             r="10"
             stroke="currentColor"
             strokeWidth="4"
-          ></circle>
+          />
           <path
             className="opacity-75"
             fill="currentColor"
             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          ></path>
+          />
         </svg>
       ) : (
         children

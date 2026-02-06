@@ -2,16 +2,9 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Button from './Button';
 import ChatBubble from './ChatBubble';
 import { ChatMessage } from '../types';
-import Icon from './Icon'; // Import the Icon component
+import Icon from './Icon';
 
-// --- Start of SpeechRecognition TypeScript Declarations ---
-// These interfaces extend the global Window object to include SpeechRecognition API types,
-// which might not be fully present in default TypeScript DOM libraries or vary across browsers.
-
-/**
- * Declares the SpeechRecognition interface.
- * This interface is used for controlling the speech recognition service.
- */
+// --- SpeechRecognition TypeScript Declarations ---
 interface SpeechRecognition extends EventTarget {
   continuous: boolean;
   interimResults: boolean;
@@ -24,77 +17,38 @@ interface SpeechRecognition extends EventTarget {
   stop(): void;
   abort(): void;
 }
-
-/**
- * Declares the SpeechRecognitionEvent interface.
- * Represents the event object for the 'result' event fired by SpeechRecognition.
- */
 interface SpeechRecognitionEvent extends Event {
   readonly results: SpeechRecognitionResultList;
 }
-
-/**
- * Declares the SpeechRecognitionResultList interface.
- * Represents a list of SpeechRecognitionResult objects.
- */
 interface SpeechRecognitionResultList {
   [index: number]: SpeechRecognitionResult;
   readonly length: number;
   item(index: number): SpeechRecognitionAlternative;
 }
-
-/**
- * Declares the SpeechRecognitionResult interface.
- * Represents a single result from the speech recognition service.
- */
 interface SpeechRecognitionResult {
   [index: number]: SpeechRecognitionAlternative;
   readonly isFinal: boolean;
   readonly length: number;
   item(index: number): SpeechRecognitionAlternative;
 }
-
-/**
- * Declares the SpeechRecognitionAlternative interface.
- * Represents a single word or phrase that has been recognized.
- */
 interface SpeechRecognitionAlternative {
   readonly confidence: number;
   readonly transcript: string;
 }
-
-/**
- * Declares the SpeechRecognitionErrorEvent interface.
- * Represents the event object for the 'error' event fired by SpeechRecognition.
- */
 interface SpeechRecognitionErrorEvent extends Event {
   readonly error: SpeechRecognitionErrorCode;
   readonly message: string;
 }
-
-/**
- * Defines the possible error codes for SpeechRecognitionErrorEvent.
- */
 type SpeechRecognitionErrorCode =
-  | "no-speech"
-  | "aborted"
-  | "audio-capture"
-  | "network"
-  | "not-allowed"
-  | "service-not-allowed"
-  | "bad-grammar"
-  | "language-not-supported";
+  | "no-speech" | "aborted" | "audio-capture" | "network"
+  | "not-allowed" | "service-not-allowed" | "bad-grammar" | "language-not-supported";
 
-// Extends the global Window interface to include `SpeechRecognition` and `webkitSpeechRecognition`.
-// This allows TypeScript to recognize these browser-specific constructors.
 declare global {
   interface Window {
     SpeechRecognition: new () => SpeechRecognition;
     webkitSpeechRecognition: new () => SpeechRecognition;
   }
 }
-// --- End of SpeechRecognition TypeScript Declarations ---
-
 
 interface ChatInterfaceProps {
   messages: ChatMessage[];
@@ -102,7 +56,7 @@ interface ChatInterfaceProps {
   loading: boolean;
   errorMessage: string | null;
   placeholder?: string;
-  onClearParentError?: () => void; // New prop for clearing errors from parent
+  onClearParentError?: () => void;
 }
 
 const ChatInterface: React.FC<ChatInterfaceProps> = ({
@@ -111,7 +65,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   loading,
   errorMessage,
   placeholder = "Digite sua mensagem...",
-  onClearParentError, // Destructure new prop
+  onClearParentError,
 }) => {
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -128,96 +82,103 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInput(e.target.value);
-    // Clear voice error if user starts typing
-    if (voiceError) {
-      setVoiceError(null);
-    }
+    if (voiceError) setVoiceError(null);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      handleSend();
-    }
-  };
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (e.key === 'Enter') handleSend();
   };
 
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
   const startVoiceInput = useCallback(() => {
     if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-      setVoiceError("Desculpe, seu navegador não suporta reconhecimento de voz.");
+      setVoiceError("Desculpe, seu navegador nao suporta reconhecimento de voz.");
       return;
     }
+    if (recognitionRef.current) recognitionRef.current.abort();
 
-    if (recognitionRef.current) {
-      recognitionRef.current.abort(); // Stop any previous recognition
-    }
-
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false; // Only capture a single utterance
-    recognition.interimResults = false; // Only return final results
-    recognition.lang = 'pt-BR'; // Set language to Portuguese (Brazil)
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognitionAPI();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'pt-BR';
 
     recognition.onstart = () => {
       setIsListening(true);
-      setVoiceError(null); // Clear any previous voice errors when starting
-      if (onClearParentError) { // Also clear parent error if voice input is initiated
-        onClearParentError();
-      }
+      setVoiceError(null);
+      if (onClearParentError) onClearParentError();
     };
-
     recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setInput(transcript);
+      setInput(event.results[0][0].transcript);
     };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
+    recognition.onend = () => setIsListening(false);
     recognition.onerror = (event) => {
       console.error('Speech recognition error:', event.error);
       setIsListening(false);
-      setVoiceError(`Erro na gravação de voz: ${event.error}. Por favor, tente novamente.`);
+      setVoiceError(`Erro na gravacao de voz: ${event.error}. Tente novamente.`);
     };
 
     recognitionRef.current = recognition;
     recognition.start();
-  }, [onClearParentError]); // Add onClearParentError to dependencies
+  }, [onClearParentError]);
 
   const handleRetryError = () => {
     if (voiceError) {
-      setVoiceError(null); // Clear voice error immediately
-      startVoiceInput(); // Retry voice input
+      setVoiceError(null);
+      startVoiceInput();
     } else if (errorMessage && onClearParentError) {
-      onClearParentError(); // Clear parent's error state
-      // User can then resend the message via input field
+      onClearParentError();
     }
   };
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
+      {/* Messages area */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5 custom-scrollbar">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500 text-center">
-            <p className="text-xl md:text-2xl font-bold mb-2">Bem-vindo(a) ao seu Assistente de Viagens!</p>
-            <p className="text-sm md:text-base">Como posso ajudar a planejar sua próxima aventura?</p>
+          <div className="flex flex-col items-center justify-center h-full text-center px-4">
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
+              style={{ backgroundColor: 'var(--color-bg-subtle)' }}
+            >
+              <Icon name="travel" className="w-8 h-8" style={{ color: 'var(--color-primary)' } as any} />
+            </div>
+            <p
+              className="text-lg md:text-xl font-semibold mb-1"
+              style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}
+            >
+              Bem-vindo ao seu Assistente de Viagens
+            </p>
+            <p
+              className="text-sm max-w-sm"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              Como posso ajudar a planejar sua proxima aventura?
+            </p>
           </div>
         )}
         {messages.map((msg) => (
           <ChatBubble key={msg.id} message={msg} />
         ))}
         {(errorMessage || voiceError) && (
-          <div className="flex flex-col items-center justify-center mt-4 p-3 bg-red-100 border border-red-200 text-red-700 rounded-md mx-auto max-w-md" role="alert">
-            <p className="font-semibold mb-2">Ops! Algo deu errado:</p>
-            <p className="text-sm mb-3">{errorMessage || voiceError}</p>
-            <Button onClick={handleRetryError} variant="outline" size="sm" className="bg-red-50 text-red-700 border-red-300 hover:bg-red-100">
+          <div
+            className="flex flex-col items-center mt-4 p-4 rounded-lg mx-auto max-w-md"
+            style={{
+              backgroundColor: 'var(--color-error-bg)',
+              border: '1px solid var(--color-error-border)',
+            }}
+            role="alert"
+          >
+            <p className="font-medium text-sm mb-1" style={{ color: 'var(--color-error)' }}>
+              Algo deu errado
+            </p>
+            <p className="text-xs mb-3 text-center" style={{ color: 'var(--color-text-secondary)' }}>
+              {errorMessage || voiceError}
+            </p>
+            <Button onClick={handleRetryError} variant="outline" size="sm">
               Tentar Novamente
             </Button>
           </div>
@@ -225,36 +186,68 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 md:p-6 border-t border-gray-200 sticky bottom-0 bg-white">
-        <div className="flex space-x-2">
-          <Button
+      {/* Input area */}
+      <div
+        className="px-4 py-3 md:px-6 md:py-4"
+        style={{
+          borderTop: '1px solid var(--color-border-light)',
+          backgroundColor: 'var(--color-bg-card)',
+        }}
+      >
+        <div className="flex items-center gap-2">
+          <button
             onClick={startVoiceInput}
             disabled={loading || isListening}
-            variant="ghost"
             aria-label={isListening ? "Gravando voz..." : "Entrada de voz"}
-            className="p-2 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 focus:ring-gray-400"
+            className="relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 focus-ring"
+            style={{
+              backgroundColor: isListening ? 'var(--color-primary)' : 'var(--color-bg-subtle)',
+              color: isListening ? 'var(--color-text-inverse)' : 'var(--color-text-secondary)',
+            }}
           >
-            {isListening ? (
-              <svg className="animate-pulse h-5 w-5 text-indigo-600" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3.53-2.64 6.4-6 6.7V21h-2v-4.3c-3.36-.3-6-3.17-6-6.7H5c0 3.98 3.53 7.24 8 7.72V21h2v-2.28c4.47-.48 8-3.74 8-7.72h-2z"/>
-              </svg>
-            ) : (
-              <Icon name="voice_chat" className="w-5 h-5 text-gray-700" />
-            )}
-          </Button>
+            {isListening && <span className="voice-pulse absolute inset-0 rounded-full" />}
+            <Icon name="mic" className="w-5 h-5 relative z-10" />
+          </button>
           <input
             type="text"
-            className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="flex-1 h-10 px-4 text-sm rounded-full border focus-ring"
+            style={{
+              backgroundColor: 'var(--color-bg-subtle)',
+              borderColor: 'var(--color-border-light)',
+              color: 'var(--color-text)',
+            }}
             placeholder={placeholder}
             value={input}
-            onChange={handleInputChange} // Use the new handler
+            onChange={handleInputChange}
             onKeyPress={handleKeyPress}
             disabled={loading || isListening}
             aria-label="Caixa de texto para mensagem"
           />
-          <Button onClick={handleSend} loading={loading} disabled={loading || isListening} size="md">
-            Enviar
-          </Button>
+          <button
+            onClick={handleSend}
+            disabled={loading || isListening || !input.trim()}
+            aria-label="Enviar mensagem"
+            className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 focus-ring"
+            style={{
+              backgroundColor: input.trim() ? 'var(--color-primary)' : 'var(--color-bg-muted)',
+              color: input.trim() ? 'var(--color-text-inverse)' : 'var(--color-text-muted)',
+            }}
+          >
+            {loading ? (
+              <svg
+                className="animate-spin h-4 w-4"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+            ) : (
+              <Icon name="send" className="w-5 h-5" />
+            )}
+          </button>
         </div>
       </div>
     </div>
