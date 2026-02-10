@@ -1,9 +1,11 @@
 import React, { useMemo } from 'react';
 import { ChatMessage } from '../types';
 import { marked } from 'marked';
-import TypingIndicator from './TypingIndicator';
+import AITextLoading from './kokonutui/AITextLoading';
+import { motion } from 'motion/react';
+import { cn } from '../lib/utils';
+import { ExternalLink } from 'lucide-react';
 
-// Configure marked for synchronous operation
 marked.setOptions({ async: false });
 
 interface ChatBubbleProps {
@@ -12,18 +14,6 @@ interface ChatBubbleProps {
 
 const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
   const isUser = message.sender === 'user';
-
-  const bubbleStyle: React.CSSProperties = isUser
-    ? {
-        backgroundColor: 'var(--color-user-bubble)',
-        color: 'var(--color-text-inverse)',
-        borderRadius: 'var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg)',
-      }
-    : {
-        backgroundColor: 'var(--color-ai-bubble)',
-        color: 'var(--color-text)',
-        borderRadius: 'var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-sm)',
-      };
 
   const parsedHtml = useMemo(() => {
     if (!isUser && message.text) {
@@ -35,7 +25,16 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
   const renderContent = () => {
     if (!isUser) {
       if (message.isStreaming && !message.text) {
-        return <TypingIndicator />;
+        return (
+          <AITextLoading
+            texts={[
+              "Pensando...",
+              "Analisando sua pergunta...",
+              "Buscando informacoes...",
+              "Preparando resposta...",
+            ]}
+          />
+        );
       } else if (message.isStreaming && message.text) {
         return (
           <>
@@ -43,7 +42,10 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
               dangerouslySetInnerHTML={{ __html: parsedHtml }}
               className="prose-travel"
             />
-            <TypingIndicator />
+            <AITextLoading
+              texts={["Continuando...", "Escrevendo...", "Quase la..."]}
+              className="mt-2"
+            />
           </>
         );
       } else {
@@ -55,38 +57,38 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
         );
       }
     }
-    return <span style={{ lineHeight: '1.6' }}>{message.text}</span>;
+    return <span className="leading-relaxed">{message.text}</span>;
   };
 
   return (
-    <div
-      className={`flex flex-col mb-3 max-w-[85%] md:max-w-[75%] ${
-        isUser ? 'items-end ml-auto' : 'items-start mr-auto'
-      }`}
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
+      className={cn(
+        "flex flex-col mb-3 max-w-[85%] md:max-w-[75%]",
+        isUser ? "items-end ml-auto" : "items-start mr-auto"
+      )}
     >
       {!isUser && (
-        <span
-          className="text-xs font-medium mb-1 ml-1"
-          style={{ color: 'var(--color-primary)' }}
-        >
+        <span className="text-[11px] font-semibold text-teal-600 dark:text-teal-400 mb-1 ml-1 uppercase tracking-wide">
           Assistente
         </span>
       )}
       <div
-        className="px-4 py-3 text-sm leading-relaxed"
-        style={{
-          ...bubbleStyle,
-          boxShadow: 'var(--shadow-sm)',
-        }}
+        className={cn(
+          "px-4 py-3 text-sm leading-relaxed",
+          isUser
+            ? "bg-teal-600 text-white rounded-2xl rounded-br-md shadow-sm"
+            : "bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 rounded-2xl rounded-bl-md"
+        )}
       >
         {renderContent()}
       </div>
+
       {message.groundingChunks && message.groundingChunks.length > 0 && (
         <div className="mt-2 ml-1">
-          <p
-            className="text-xs font-semibold mb-1"
-            style={{ color: 'var(--color-text-muted)' }}
-          >
+          <p className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-1">
             Fontes
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -100,13 +102,9 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
                     href={uri}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center text-xs px-2 py-1 rounded-full transition-colors duration-150"
-                    style={{
-                      backgroundColor: 'var(--color-bg-subtle)',
-                      color: 'var(--color-primary)',
-                      border: '1px solid var(--color-border-light)',
-                    }}
+                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-stone-50 dark:bg-stone-800/80 text-teal-600 dark:text-teal-400 border border-stone-200 dark:border-stone-700 hover:border-teal-300 dark:hover:border-teal-600 transition-colors"
                   >
+                    <ExternalLink className="w-3 h-3" />
                     {title}
                   </a>
                 );
@@ -116,7 +114,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };
 

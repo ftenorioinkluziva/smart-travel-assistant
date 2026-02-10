@@ -3,20 +3,30 @@ import { Chat } from '@google/genai';
 import { sendSearchQuery, sendMapsQuery, createChatSession, sendMessageToChatStream, sendFastResponse } from './services/geminiService';
 import { ChatMessage, GeolocationPosition, AppMode } from './types';
 import { APP_TITLE, GEOLOCATION_ERROR_MESSAGES, CHAT_HISTORY_STORAGE_KEY } from './constants';
-import Button from './components/Button';
 import ChatInterface from './components/ChatInterface';
-import FeaturePanel from './components/FeaturePanel';
-import Icon from './components/Icon';
+import SmoothTab from './components/kokonutui/SmoothTab';
+import ShimmerText from './components/kokonutui/ShimmerText';
+import KLoader from './components/kokonutui/KLoader';
+import AITextLoading from './components/kokonutui/AITextLoading';
+import { cn } from './lib/utils';
+import { useAutoResizeTextarea } from './hooks/use-auto-resize-textarea';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  MessageCircle, Search, MapPin, Zap, Globe,
+  History, Trash2, Send, X
+} from 'lucide-react';
+import { marked } from 'marked';
 
-const NAV_ITEMS: { mode: AppMode; label: string; icon: string; description: string }[] = [
-  { mode: 'chat', label: 'Chat', icon: 'voice_chat', description: 'Converse com IA' },
-  { mode: 'search', label: 'Pesquisa', icon: 'google', description: 'Busca na web' },
-  { mode: 'maps', label: 'Mapas', icon: 'google_pin', description: 'Locais e rotas' },
-  { mode: 'fast-response', label: 'Rapido', icon: 'bolt', description: 'Respostas instantaneas' },
+marked.setOptions({ async: false });
+
+const NAV_ITEMS = [
+  { id: 'chat' as AppMode, title: 'Chat', icon: <MessageCircle className="w-4 h-4" /> },
+  { id: 'search' as AppMode, title: 'Pesquisa', icon: <Search className="w-4 h-4" /> },
+  { id: 'maps' as AppMode, title: 'Mapas', icon: <MapPin className="w-4 h-4" /> },
+  { id: 'fast-response' as AppMode, title: 'Rapido', icon: <Zap className="w-4 h-4" /> },
 ];
 
 const App: React.FC = () => {
-  console.log("[v0] App component rendering");
   const [appMode, setAppMode] = useState<AppMode>('chat');
   const [geolocation, setGeolocation] = useState<GeolocationPosition | null>(null);
   const [geolocationError, setGeolocationError] = useState<string | null>(null);
@@ -26,12 +36,10 @@ const App: React.FC = () => {
   const [chatError, setChatError] = useState<string | null>(null);
   const chatSessionRef = useRef<Chat | null>(null);
 
-  const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<ChatMessage[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
-  const [mapsQuery, setMapsQuery] = useState('');
   const [mapsResults, setMapsResults] = useState<ChatMessage[]>([]);
   const [mapsLoading, setMapsLoading] = useState(false);
   const [mapsError, setMapsError] = useState<string | null>(null);
@@ -40,6 +48,12 @@ const App: React.FC = () => {
   const [fastResponseResult, setFastResponseResult] = useState<string>('');
   const [fastResponseLoading, setFastResponseLoading] = useState(false);
   const [fastResponseError, setFastResponseError] = useState<string | null>(null);
+  const [fastFocused, setFastFocused] = useState(false);
+
+  const { textareaRef: fastTextareaRef, adjustHeight: fastAdjustHeight } = useAutoResizeTextarea({
+    minHeight: 44,
+    maxHeight: 120,
+  });
 
   useEffect(() => {
     chatSessionRef.current = createChatSession();
@@ -52,7 +66,6 @@ const App: React.FC = () => {
         setChatMessages(JSON.parse(storedHistory));
       }
     } catch (e) {
-      console.error("Failed to load chat history:", e);
       localStorage.removeItem(CHAT_HISTORY_STORAGE_KEY);
     }
   }, []);
@@ -60,9 +73,7 @@ const App: React.FC = () => {
   useEffect(() => {
     try {
       localStorage.setItem(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(chatMessages));
-    } catch (e) {
-      console.error("Failed to save chat history:", e);
-    }
+    } catch (e) { /* ignore */ }
   }, [chatMessages]);
 
   useEffect(() => {
@@ -99,12 +110,8 @@ const App: React.FC = () => {
       const storedHistory = localStorage.getItem(CHAT_HISTORY_STORAGE_KEY);
       if (storedHistory) {
         setChatMessages(JSON.parse(storedHistory));
-      } else {
-        alert("Nenhum historico de chat encontrado.");
       }
-    } catch (e) {
-      alert("Erro ao carregar o historico de chat.");
-    }
+    } catch (e) { /* ignore */ }
   }, []);
 
   const handleSendChatMessage = useCallback(async (message: string) => {
@@ -149,8 +156,7 @@ const App: React.FC = () => {
 
   const handleSendSearchQuery = useCallback(async (query: string) => {
     if (!query.trim()) return;
-    const userMessageId = `user-search-${Date.now()}`;
-    setSearchResults((prev) => [...prev, { id: userMessageId, sender: 'user', text: query }]);
+    setSearchResults((prev) => [...prev, { id: `user-search-${Date.now()}`, sender: 'user', text: query }]);
     setSearchLoading(true);
     setSearchError(null);
     try {
@@ -161,7 +167,6 @@ const App: React.FC = () => {
       setSearchResults((prev) => [...prev, { id: `error-search-${Date.now()}`, sender: 'gemini', text: `Erro: ${e.message}` }]);
     } finally {
       setSearchLoading(false);
-      setSearchQuery('');
     }
   }, []);
 
@@ -169,8 +174,7 @@ const App: React.FC = () => {
     if (!query.trim()) return;
     if (!geolocation && !geolocationError) { setMapsError("Obtendo sua localizacao..."); return; }
     if (geolocationError) { setMapsError(geolocationError); return; }
-    const userMessageId = `user-maps-${Date.now()}`;
-    setMapsResults((prev) => [...prev, { id: userMessageId, sender: 'user', text: query }]);
+    setMapsResults((prev) => [...prev, { id: `user-maps-${Date.now()}`, sender: 'user', text: query }]);
     setMapsLoading(true);
     setMapsError(null);
     try {
@@ -181,49 +185,47 @@ const App: React.FC = () => {
       setMapsResults((prev) => [...prev, { id: `error-maps-${Date.now()}`, sender: 'gemini', text: `Erro: ${e.message}` }]);
     } finally {
       setMapsLoading(false);
-      setMapsQuery('');
     }
   }, [geolocation, geolocationError]);
 
-  const handleSendFastResponse = useCallback(async (query?: string) => {
-    const q = query || fastResponseQuery;
-    if (!q.trim()) return;
+  const handleSendFastResponse = useCallback(async () => {
+    if (!fastResponseQuery.trim()) return;
     setFastResponseResult('');
     setFastResponseLoading(true);
     setFastResponseError(null);
     try {
-      const response = await sendFastResponse(q);
+      const response = await sendFastResponse(fastResponseQuery);
       setFastResponseResult(response);
     } catch (e: any) {
       setFastResponseError(e.message || "Falha na resposta rapida.");
     } finally {
       setFastResponseLoading(false);
       setFastResponseQuery('');
+      fastAdjustHeight(true);
     }
-  }, [fastResponseQuery]);
+  }, [fastResponseQuery, fastAdjustHeight]);
 
   const renderContent = () => {
     switch (appMode) {
       case 'chat':
         return (
-          <FeaturePanel title="Chatbot IA" description="Converse com o assistente para planejar suas ferias.">
-            <div className="flex items-center gap-2 px-5 py-2 md:px-6" style={{ borderBottom: '1px solid var(--color-border-light)' }}>
+          <div className="flex flex-col h-full">
+            {/* Chat toolbar */}
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-stone-100 dark:border-stone-800">
               <button
                 onClick={handleLoadChatHistory}
                 disabled={chatLoading}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-colors focus-ring"
-                style={{ color: 'var(--color-text-secondary)', backgroundColor: 'var(--color-bg-subtle)' }}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full text-stone-500 dark:text-stone-400 bg-stone-50 dark:bg-stone-800/60 hover:bg-stone-100 dark:hover:bg-stone-700/60 transition-colors"
               >
-                <Icon name="history" className="w-3.5 h-3.5" />
+                <History className="w-3.5 h-3.5" />
                 Historico
               </button>
               <button
                 onClick={handleClearChatHistory}
                 disabled={chatLoading}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-colors focus-ring"
-                style={{ color: 'var(--color-text-secondary)', backgroundColor: 'var(--color-bg-subtle)' }}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full text-stone-500 dark:text-stone-400 bg-stone-50 dark:bg-stone-800/60 hover:bg-stone-100 dark:hover:bg-stone-700/60 transition-colors"
               >
-                <Icon name="clear" className="w-3.5 h-3.5" />
+                <Trash2 className="w-3.5 h-3.5" />
                 Limpar
               </button>
             </div>
@@ -235,201 +237,191 @@ const App: React.FC = () => {
               placeholder="Pergunte sobre destinos, atividades, etc."
               onClearParentError={() => setChatError(null)}
             />
-          </FeaturePanel>
+          </div>
         );
+
       case 'search':
         return (
-          <FeaturePanel title="Pesquisa Web" description="Informacoes atualizadas da web para sua viagem.">
-            <ChatInterface
-              messages={searchResults}
-              onSendMessage={(msg) => handleSendSearchQuery(msg)}
-              loading={searchLoading}
-              errorMessage={searchError}
-              placeholder="Pesquise sobre eventos, noticias de viagem..."
-              onClearParentError={() => setSearchError(null)}
-            />
-          </FeaturePanel>
+          <ChatInterface
+            messages={searchResults}
+            onSendMessage={(msg) => handleSendSearchQuery(msg)}
+            loading={searchLoading}
+            errorMessage={searchError}
+            placeholder="Pesquise sobre eventos, noticias de viagem..."
+            onClearParentError={() => setSearchError(null)}
+          />
         );
+
       case 'maps':
         return (
-          <FeaturePanel title="Mapas e Locais" description="Encontre lugares e informacoes do seu destino.">
-            <ChatInterface
-              messages={mapsResults}
-              onSendMessage={(msg) => handleSendMapsQuery(msg)}
-              loading={mapsLoading}
-              errorMessage={mapsError || geolocationError}
-              placeholder="Encontre restaurantes, hoteis ou pontos turisticos."
-              onClearParentError={() => { setMapsError(null); setGeolocationError(null); }}
-            />
-          </FeaturePanel>
+          <ChatInterface
+            messages={mapsResults}
+            onSendMessage={(msg) => handleSendMapsQuery(msg)}
+            loading={mapsLoading}
+            errorMessage={mapsError || geolocationError}
+            placeholder="Encontre restaurantes, hoteis ou pontos turisticos."
+            onClearParentError={() => { setMapsError(null); setGeolocationError(null); }}
+          />
         );
+
       case 'fast-response':
         return (
-          <FeaturePanel title="Respostas Rapidas" description="Sugestoes e informacoes com baixa latencia.">
-            <div className="flex flex-col h-full">
-              <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5 custom-scrollbar">
-                {!fastResponseResult && !fastResponseLoading && !fastResponseError && (
-                  <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                    <div
-                      className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
-                      style={{ backgroundColor: 'var(--color-bg-subtle)' }}
-                    >
-                      <Icon name="bolt" className="w-8 h-8" style={{ color: 'var(--color-accent)' } as any} />
-                    </div>
-                    <p
-                      className="text-lg font-semibold mb-1"
-                      style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}
-                    >
-                      Respostas instantaneas
-                    </p>
-                    <p className="text-sm max-w-sm" style={{ color: 'var(--color-text-muted)' }}>
-                      Faca uma pergunta rapida sobre viagens e receba respostas em segundos.
-                    </p>
+          <div className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5 custom-scrollbar">
+              {!fastResponseResult && !fastResponseLoading && !fastResponseError && (
+                <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                  <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center mb-4">
+                    <Zap className="w-7 h-7 text-amber-500" />
                   </div>
-                )}
-                {fastResponseLoading && (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="flex flex-col items-center gap-3">
-                      <div
-                        className="animate-spin rounded-full h-8 w-8 border-2 border-t-transparent"
-                        style={{ borderColor: 'var(--color-border)', borderTopColor: 'var(--color-primary)' }}
-                      />
-                      <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Gerando resposta...</p>
-                    </div>
-                  </div>
-                )}
-                {fastResponseError && (
-                  <div
-                    className="flex flex-col items-center p-4 rounded-lg mx-auto max-w-md"
-                    style={{ backgroundColor: 'var(--color-error-bg)', border: '1px solid var(--color-error-border)' }}
-                  >
-                    <p className="font-medium text-sm mb-1" style={{ color: 'var(--color-error)' }}>Algo deu errado</p>
-                    <p className="text-xs mb-3 text-center" style={{ color: 'var(--color-text-secondary)' }}>{fastResponseError}</p>
-                    <Button onClick={() => setFastResponseError(null)} variant="outline" size="sm">Limpar Erro</Button>
-                  </div>
-                )}
-                {fastResponseResult && (
-                  <div
-                    className="p-4 md:p-5 rounded-lg text-sm leading-relaxed prose-travel"
-                    style={{ backgroundColor: 'var(--color-bg-subtle)', border: '1px solid var(--color-border-light)' }}
-                    dangerouslySetInnerHTML={{ __html: fastResponseResult }}
+                  <p className="text-lg font-semibold text-stone-800 dark:text-stone-200 font-display">
+                    Respostas instantaneas
+                  </p>
+                  <p className="text-sm text-stone-400 dark:text-stone-500 mt-1 max-w-sm">
+                    Faca uma pergunta rapida sobre viagens e receba respostas em segundos.
+                  </p>
+                </div>
+              )}
+
+              {fastResponseLoading && (
+                <div className="flex items-center justify-center h-full">
+                  <KLoader
+                    title="Gerando resposta..."
+                    subtitle="Usando o modelo de baixa latencia"
+                    size="md"
                   />
-                )}
-              </div>
-              <div
-                className="px-4 py-3 md:px-6 md:py-4"
-                style={{ borderTop: '1px solid var(--color-border-light)', backgroundColor: 'var(--color-bg-card)' }}
-              >
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    className="flex-1 h-10 px-4 text-sm rounded-full border focus-ring"
-                    style={{ backgroundColor: 'var(--color-bg-subtle)', borderColor: 'var(--color-border-light)', color: 'var(--color-text)' }}
-                    placeholder="Faca uma pergunta rapida..."
-                    value={fastResponseQuery}
-                    onChange={(e) => setFastResponseQuery(e.target.value)}
-                    onKeyPress={(e) => { if (e.key === 'Enter') handleSendFastResponse(); }}
-                    disabled={fastResponseLoading}
-                    aria-label="Pergunta rapida"
-                  />
+                </div>
+              )}
+
+              {fastResponseError && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 mx-auto max-w-md"
+                  role="alert"
+                >
+                  <div className="flex-1">
+                    <p className="font-medium text-sm text-red-600 dark:text-red-400">Algo deu errado</p>
+                    <p className="text-xs text-red-500/80 dark:text-red-400/60 mt-0.5">{fastResponseError}</p>
+                  </div>
                   <button
+                    onClick={() => setFastResponseError(null)}
+                    className="text-red-400 hover:text-red-600 transition-colors p-1"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </motion.div>
+              )}
+
+              {fastResponseResult && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-4 md:p-5 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-100 dark:border-stone-700/50 text-sm leading-relaxed prose-travel"
+                  dangerouslySetInnerHTML={{ __html: marked.parse(fastResponseResult) as string }}
+                />
+              )}
+            </div>
+
+            {/* Fast response input - KokonutUI style */}
+            <div className="px-3 py-3 md:px-5 md:py-4 border-t border-stone-200 dark:border-stone-700/50 bg-white dark:bg-stone-900">
+              <div
+                className={cn(
+                  "relative flex flex-col rounded-2xl border transition-all duration-200",
+                  fastFocused
+                    ? "border-amber-400 dark:border-amber-500 ring-2 ring-amber-500/20"
+                    : "border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800/50"
+                )}
+                onClick={() => fastTextareaRef.current?.focus()}
+              >
+                <textarea
+                  ref={fastTextareaRef}
+                  value={fastResponseQuery}
+                  placeholder="Faca uma pergunta rapida..."
+                  className="w-full resize-none bg-transparent px-4 pt-3 pb-2 text-sm text-stone-800 dark:text-stone-200 placeholder:text-stone-400 dark:placeholder:text-stone-500 border-none outline-none focus:ring-0"
+                  onFocus={() => setFastFocused(true)}
+                  onBlur={() => setFastFocused(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendFastResponse();
+                    }
+                  }}
+                  onChange={(e) => {
+                    setFastResponseQuery(e.target.value);
+                    fastAdjustHeight();
+                  }}
+                  disabled={fastResponseLoading}
+                  aria-label="Pergunta rapida"
+                />
+                <div className="flex items-center justify-end px-3 pb-2">
+                  <motion.button
                     onClick={handleSendFastResponse}
                     disabled={fastResponseLoading || !fastResponseQuery.trim()}
+                    type="button"
+                    whileTap={{ scale: 0.95 }}
+                    className={cn(
+                      "rounded-full p-2 transition-all duration-200",
+                      fastResponseQuery.trim()
+                        ? "bg-amber-500 text-white hover:bg-amber-600 shadow-sm"
+                        : "bg-stone-100 dark:bg-stone-800 text-stone-300 dark:text-stone-600"
+                    )}
                     aria-label="Enviar pergunta"
-                    className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 focus-ring"
-                    style={{
-                      backgroundColor: fastResponseQuery.trim() ? 'var(--color-accent)' : 'var(--color-bg-muted)',
-                      color: fastResponseQuery.trim() ? '#fff' : 'var(--color-text-muted)',
-                    }}
                   >
-                    <Icon name="send" className="w-5 h-5" />
-                  </button>
+                    <Send className="w-4 h-4" />
+                  </motion.button>
                 </div>
               </div>
             </div>
-          </FeaturePanel>
+          </div>
         );
+
       default:
         return null;
     }
   };
 
   return (
-    <div
-      className="flex flex-col h-screen w-full max-w-2xl mx-auto overflow-hidden"
-      style={{
-        backgroundColor: 'var(--color-bg-card)',
-        boxShadow: 'var(--shadow-xl)',
-      }}
-    >
+    <div className="flex flex-col h-screen w-full max-w-2xl mx-auto overflow-hidden bg-white dark:bg-stone-900 shadow-2xl">
       {/* Header */}
-      <header
-        className="flex items-center gap-3 px-5 py-4 md:px-6 flex-shrink-0"
-        style={{
-          backgroundColor: 'var(--color-primary-dark)',
-          color: 'var(--color-text-inverse)',
-        }}
-      >
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
-        >
-          <Icon name="travel" className="w-5 h-5" />
+      <header className="flex items-center gap-3 px-5 py-4 bg-gradient-to-r from-teal-700 to-teal-600 dark:from-teal-800 dark:to-teal-700">
+        <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
+          <Globe className="w-5 h-5 text-white" />
         </div>
-        <div>
-          <h1
-            className="text-lg font-bold leading-tight"
-            style={{ fontFamily: 'var(--font-display)' }}
-          >
-            {APP_TITLE}
-          </h1>
-          <p className="text-xs opacity-70">Seu assistente inteligente de viagens</p>
+        <div className="flex-1 min-w-0">
+          <ShimmerText
+            text={APP_TITLE}
+            className="text-lg !text-white [&>span]:!from-white [&>span]:!via-teal-200 [&>span]:!to-white"
+          />
+          <p className="text-xs text-teal-100/70 mt-0.5">
+            Seu assistente inteligente de viagens
+          </p>
         </div>
       </header>
 
-      {/* Navigation */}
-      <nav
-        className="flex flex-shrink-0"
-        style={{
-          backgroundColor: 'var(--color-bg-card)',
-          borderBottom: '1px solid var(--color-border-light)',
-        }}
-        role="tablist"
-        aria-label="Modos do aplicativo"
-      >
-        {NAV_ITEMS.map((item) => {
-          const isActive = appMode === item.mode;
-          return (
-            <button
-              key={item.mode}
-              onClick={() => setAppMode(item.mode)}
-              role="tab"
-              aria-selected={isActive}
-              className="flex-1 flex flex-col items-center gap-0.5 py-3 md:py-3.5 transition-all duration-200 relative focus-ring"
-              style={{
-                color: isActive ? 'var(--color-primary)' : 'var(--color-text-muted)',
-                backgroundColor: 'transparent',
-                borderRadius: 0,
-              }}
-            >
-              <Icon name={item.icon} className="w-5 h-5" />
-              <span className="text-xs font-medium">{item.label}</span>
-              {/* Active indicator */}
-              <span
-                className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 rounded-full transition-all duration-200"
-                style={{
-                  width: isActive ? '60%' : '0%',
-                  backgroundColor: 'var(--color-primary)',
-                }}
-              />
-            </button>
-          );
-        })}
-      </nav>
+      {/* Navigation - SmoothTab */}
+      <div className="px-3 py-2 bg-white dark:bg-stone-900 border-b border-stone-100 dark:border-stone-800">
+        <SmoothTab
+          items={NAV_ITEMS}
+          defaultTabId="chat"
+          activeColor="bg-teal-600"
+          onChange={(tabId) => setAppMode(tabId as AppMode)}
+        />
+      </div>
 
       {/* Content */}
       <main className="flex-1 overflow-hidden">
-        {renderContent()}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={appMode}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+            className="h-full"
+          >
+            {renderContent()}
+          </motion.div>
+        </AnimatePresence>
       </main>
     </div>
   );

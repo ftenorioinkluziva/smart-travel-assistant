@@ -1,8 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import Button from './Button';
 import ChatBubble from './ChatBubble';
 import { ChatMessage } from '../types';
-import Icon from './Icon';
+import AITextLoading from './kokonutui/AITextLoading';
+import AIVoice from './kokonutui/AIVoice';
+import { useAutoResizeTextarea } from '../hooks/use-auto-resize-textarea';
+import { cn } from '../lib/utils';
+import { Send, Paperclip, Mic, Globe, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 // --- SpeechRecognition TypeScript Declarations ---
 interface SpeechRecognition extends EventTarget {
@@ -70,23 +74,22 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [showVoicePanel, setShowVoicePanel] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+
+  const { textareaRef, adjustHeight } = useAutoResizeTextarea({
+    minHeight: 44,
+    maxHeight: 160,
+  });
 
   const handleSend = () => {
     if (input.trim() && !loading) {
       onSendMessage(input);
       setInput('');
+      adjustHeight(true);
     }
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInput(e.target.value);
-    if (voiceError) setVoiceError(null);
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') handleSend();
   };
 
   useEffect(() => {
@@ -112,142 +115,188 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       if (onClearParentError) onClearParentError();
     };
     recognition.onresult = (event) => {
-      setInput(event.results[0][0].transcript);
+      const transcript = event.results[0][0].transcript;
+      setInput(transcript);
+      setShowVoicePanel(false);
     };
     recognition.onend = () => setIsListening(false);
     recognition.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
       setIsListening(false);
-      setVoiceError(`Erro na gravacao de voz: ${event.error}. Tente novamente.`);
+      setVoiceError(`Erro na gravacao de voz: ${event.error}.`);
     };
 
     recognitionRef.current = recognition;
     recognition.start();
   }, [onClearParentError]);
 
-  const handleRetryError = () => {
-    if (voiceError) {
-      setVoiceError(null);
-      startVoiceInput();
-    } else if (errorMessage && onClearParentError) {
-      onClearParentError();
+  const stopVoiceInput = useCallback(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.abort();
+      setIsListening(false);
     }
-  };
+  }, []);
+
+  const toggleVoice = useCallback(() => {
+    if (isListening) {
+      stopVoiceInput();
+    } else {
+      startVoiceInput();
+    }
+  }, [isListening, startVoiceInput, stopVoiceInput]);
 
   return (
     <div className="flex flex-col h-full">
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5 custom-scrollbar">
-        {messages.length === 0 && (
+        {messages.length === 0 && !showVoicePanel && (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
-              style={{ backgroundColor: 'var(--color-bg-subtle)' }}
-            >
-              <Icon name="travel" className="w-8 h-8" style={{ color: 'var(--color-primary)' } as any} />
+            <div className="w-14 h-14 rounded-2xl bg-teal-500/10 flex items-center justify-center mb-4">
+              <Globe className="w-7 h-7 text-teal-600 dark:text-teal-400" />
             </div>
-            <p
-              className="text-lg md:text-xl font-semibold mb-1"
-              style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}
-            >
-              Bem-vindo ao seu Assistente de Viagens
+            <p className="text-lg font-semibold text-stone-800 dark:text-stone-200 font-display">
+              Bem-vindo ao seu Assistente
             </p>
-            <p
-              className="text-sm max-w-sm"
-              style={{ color: 'var(--color-text-muted)' }}
-            >
+            <p className="text-sm text-stone-400 dark:text-stone-500 mt-1 max-w-sm">
               Como posso ajudar a planejar sua proxima aventura?
             </p>
           </div>
         )}
+
         {messages.map((msg) => (
           <ChatBubble key={msg.id} message={msg} />
         ))}
-        {(errorMessage || voiceError) && (
-          <div
-            className="flex flex-col items-center mt-4 p-4 rounded-lg mx-auto max-w-md"
-            style={{
-              backgroundColor: 'var(--color-error-bg)',
-              border: '1px solid var(--color-error-border)',
-            }}
+
+        {loading && messages.length > 0 && messages[messages.length - 1]?.sender === 'gemini' && messages[messages.length - 1]?.isStreaming && (
+          null /* streaming is handled inside ChatBubble */
+        )}
+
+        {/* Voice panel */}
+        <AnimatePresence>
+          {showVoicePanel && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="flex flex-col items-center py-4"
+            >
+              <AIVoice
+                isListening={isListening}
+                onToggle={toggleVoice}
+              />
+              {voiceError && (
+                <p className="text-xs text-red-500 mt-2 text-center">{voiceError}</p>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {(errorMessage && !showVoicePanel) && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-3 mt-4 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 mx-auto max-w-md"
             role="alert"
           >
-            <p className="font-medium text-sm mb-1" style={{ color: 'var(--color-error)' }}>
-              Algo deu errado
-            </p>
-            <p className="text-xs mb-3 text-center" style={{ color: 'var(--color-text-secondary)' }}>
-              {errorMessage || voiceError}
-            </p>
-            <Button onClick={handleRetryError} variant="outline" size="sm">
-              Tentar Novamente
-            </Button>
-          </div>
+            <div className="flex-1">
+              <p className="font-medium text-sm text-red-600 dark:text-red-400">Algo deu errado</p>
+              <p className="text-xs text-red-500/80 dark:text-red-400/60 mt-0.5">{errorMessage}</p>
+            </div>
+            <button
+              onClick={onClearParentError}
+              className="text-red-400 hover:text-red-600 transition-colors p-1"
+              aria-label="Fechar erro"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input area */}
-      <div
-        className="px-4 py-3 md:px-6 md:py-4"
-        style={{
-          borderTop: '1px solid var(--color-border-light)',
-          backgroundColor: 'var(--color-bg-card)',
-        }}
-      >
-        <div className="flex items-center gap-2">
-          <button
-            onClick={startVoiceInput}
-            disabled={loading || isListening}
-            aria-label={isListening ? "Gravando voz..." : "Entrada de voz"}
-            className="relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 focus-ring"
-            style={{
-              backgroundColor: isListening ? 'var(--color-primary)' : 'var(--color-bg-subtle)',
-              color: isListening ? 'var(--color-text-inverse)' : 'var(--color-text-secondary)',
-            }}
-          >
-            {isListening && <span className="voice-pulse absolute inset-0 rounded-full" />}
-            <Icon name="mic" className="w-5 h-5 relative z-10" />
-          </button>
-          <input
-            type="text"
-            className="flex-1 h-10 px-4 text-sm rounded-full border focus-ring"
-            style={{
-              backgroundColor: 'var(--color-bg-subtle)',
-              borderColor: 'var(--color-border-light)',
-              color: 'var(--color-text)',
-            }}
-            placeholder={placeholder}
+      {/* AI Input area - KokonutUI style */}
+      <div className="px-3 py-3 md:px-5 md:py-4 border-t border-stone-200 dark:border-stone-700/50 bg-white dark:bg-stone-900">
+        <div
+          className={cn(
+            "relative flex flex-col rounded-2xl border transition-all duration-200",
+            isFocused
+              ? "border-teal-400 dark:border-teal-500 ring-2 ring-teal-500/20"
+              : "border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800/50"
+          )}
+          onClick={() => textareaRef.current?.focus()}
+        >
+          <textarea
+            ref={textareaRef}
             value={input}
-            onChange={handleInputChange}
-            onKeyPress={handleKeyPress}
+            placeholder={placeholder}
+            className={cn(
+              "w-full resize-none bg-transparent px-4 pt-3 pb-2 text-sm",
+              "text-stone-800 dark:text-stone-200 placeholder:text-stone-400 dark:placeholder:text-stone-500",
+              "border-none outline-none focus:ring-0"
+            )}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            onChange={(e) => {
+              setInput(e.target.value);
+              adjustHeight();
+            }}
             disabled={loading || isListening}
             aria-label="Caixa de texto para mensagem"
           />
-          <button
-            onClick={handleSend}
-            disabled={loading || isListening || !input.trim()}
-            aria-label="Enviar mensagem"
-            className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 focus-ring"
-            style={{
-              backgroundColor: input.trim() ? 'var(--color-primary)' : 'var(--color-bg-muted)',
-              color: input.trim() ? 'var(--color-text-inverse)' : 'var(--color-text-muted)',
-            }}
-          >
-            {loading ? (
-              <svg
-                className="animate-spin h-4 w-4"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
+
+          {/* Bottom toolbar */}
+          <div className="flex items-center justify-between px-3 pb-2">
+            <div className="flex items-center gap-1">
+              {/* Voice toggle */}
+              <button
+                onClick={() => {
+                  setShowVoicePanel(!showVoicePanel);
+                  if (isListening) stopVoiceInput();
+                }}
+                type="button"
+                className={cn(
+                  "rounded-full p-1.5 transition-all flex items-center gap-1.5 text-xs",
+                  showVoicePanel
+                    ? "bg-teal-500/15 text-teal-600 dark:text-teal-400"
+                    : "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50"
+                )}
+                disabled={loading}
+                aria-label="Entrada de voz"
               >
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-            ) : (
-              <Icon name="send" className="w-5 h-5" />
-            )}
-          </button>
+                <Mic className="w-4 h-4" />
+                {showVoicePanel && <span className="font-medium pr-1">Voz</span>}
+              </button>
+            </div>
+
+            {/* Send button */}
+            <motion.button
+              onClick={handleSend}
+              disabled={loading || isListening || !input.trim()}
+              type="button"
+              whileTap={{ scale: 0.95 }}
+              className={cn(
+                "rounded-full p-2 transition-all duration-200",
+                input.trim()
+                  ? "bg-teal-600 text-white hover:bg-teal-700 shadow-sm"
+                  : "bg-stone-100 dark:bg-stone-800 text-stone-300 dark:text-stone-600"
+              )}
+              aria-label="Enviar mensagem"
+            >
+              {loading ? (
+                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+            </motion.button>
+          </div>
         </div>
       </div>
     </div>
