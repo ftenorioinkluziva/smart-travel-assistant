@@ -1,7 +1,12 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ChatMessage } from '../types';
-import { marked } from 'marked'; // For rendering markdown
-import TypingIndicator from './TypingIndicator'; // Import the new TypingIndicator
+import { marked } from 'marked';
+import AITextLoading from './kokonutui/AITextLoading';
+import { motion } from 'motion/react';
+import { cn } from '../lib/utils';
+import { ExternalLink } from 'lucide-react';
+
+marked.setOptions({ async: false });
 
 interface ChatBubbleProps {
   message: ChatMessage;
@@ -9,65 +14,107 @@ interface ChatBubbleProps {
 
 const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
   const isUser = message.sender === 'user';
-  const bubbleClasses = isUser
-    ? 'bg-indigo-500 text-white self-end rounded-br-none'
-    : 'bg-gray-200 text-gray-800 self-start rounded-bl-none';
+
+  const parsedHtml = useMemo(() => {
+    if (!isUser && message.text) {
+      return marked.parse(message.text) as string;
+    }
+    return '';
+  }, [isUser, message.text]);
 
   const renderContent = () => {
-    // Only render markdown for Gemini messages
     if (!isUser) {
-      // If streaming and no text has arrived yet, show just the typing indicator
       if (message.isStreaming && !message.text) {
-        return <TypingIndicator />;
-      } 
-      // If streaming and text is present, render the text and then the typing indicator
-      else if (message.isStreaming && message.text) {
+        return (
+          <AITextLoading
+            texts={[
+              "Pensando...",
+              "Analisando sua pergunta...",
+              "Buscando informacoes...",
+              "Preparando resposta...",
+            ]}
+          />
+        );
+      } else if (message.isStreaming && message.text) {
         return (
           <>
-            <div dangerouslySetInnerHTML={{ __html: marked.parse(message.text) }} className="prose prose-sm max-w-none" />
-            <TypingIndicator />
+            <div
+              dangerouslySetInnerHTML={{ __html: parsedHtml }}
+              className="prose-travel"
+            />
+            <AITextLoading
+              texts={["Continuando...", "Escrevendo...", "Quase la..."]}
+              className="mt-2"
+            />
           </>
         );
-      }
-      // If not streaming (final message), just render the markdown
-      else {
-        return <div dangerouslySetInnerHTML={{ __html: marked.parse(message.text || '') }} className="prose prose-sm max-w-none" />;
+      } else {
+        return (
+          <div
+            dangerouslySetInnerHTML={{ __html: parsedHtml }}
+            className="prose-travel"
+          />
+        );
       }
     }
-    // User messages are plain text and don't stream
-    return message.text;
+    return <span className="leading-relaxed">{message.text}</span>;
   };
 
   return (
-    <div className={`flex flex-col mb-4 max-w-[80%] ${isUser ? 'items-end' : 'items-start'}`}>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
+      className={cn(
+        "flex flex-col mb-3 max-w-[85%] md:max-w-[75%]",
+        isUser ? "items-end ml-auto" : "items-start mr-auto"
+      )}
+    >
+      {!isUser && (
+        <span className="text-[11px] font-semibold text-teal-600 dark:text-teal-400 mb-1 ml-1 uppercase tracking-wide">
+          Assistente
+        </span>
+      )}
       <div
-        className={`relative px-4 py-2 rounded-lg shadow-md ${bubbleClasses} transition-all duration-300 ease-in-out`}
+        className={cn(
+          "px-4 py-3 text-sm leading-relaxed",
+          isUser
+            ? "bg-teal-600 text-white rounded-2xl rounded-br-md shadow-sm"
+            : "bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 rounded-2xl rounded-bl-md"
+        )}
       >
         {renderContent()}
-        {/* The TypingIndicator is now managed within renderContent, removing the old streaming span */}
       </div>
+
       {message.groundingChunks && message.groundingChunks.length > 0 && (
-        <div className="mt-1 text-xs text-gray-600">
-          <p className="font-semibold">Fontes:</p>
-          <ul className="list-disc list-inside">
+        <div className="mt-2 ml-1">
+          <p className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-1">
+            Fontes
+          </p>
+          <div className="flex flex-wrap gap-1.5">
             {message.groundingChunks.map((chunk, index) => {
               const uri = chunk.web?.uri || chunk.maps?.uri;
               const title = chunk.web?.title || chunk.maps?.title || 'Link';
               if (uri) {
                 return (
-                  <li key={index}>
-                    <a href={uri} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
-                      {title}
-                    </a>
-                  </li>
+                  <a
+                    key={index}
+                    href={uri}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-stone-50 dark:bg-stone-800/80 text-teal-600 dark:text-teal-400 border border-stone-200 dark:border-stone-700 hover:border-teal-300 dark:hover:border-teal-600 transition-colors"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    {title}
+                  </a>
                 );
               }
               return null;
             })}
-          </ul>
+          </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };
 

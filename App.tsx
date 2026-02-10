@@ -2,99 +2,95 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Chat } from '@google/genai';
 import { sendSearchQuery, sendMapsQuery, createChatSession, sendMessageToChatStream, sendFastResponse } from './services/geminiService';
 import { ChatMessage, GeolocationPosition, AppMode } from './types';
-import { APP_TITLE, APP_DESCRIPTION, GEOLOCATION_ERROR_MESSAGES, CHAT_HISTORY_STORAGE_KEY } from './constants';
-import Button from './components/Button';
+import { APP_TITLE, GEOLOCATION_ERROR_MESSAGES, CHAT_HISTORY_STORAGE_KEY } from './constants';
 import ChatInterface from './components/ChatInterface';
-import FeaturePanel from './components/FeaturePanel';
-import Icon from './components/Icon';
+import SmoothTab from './components/kokonutui/SmoothTab';
+import ShimmerText from './components/kokonutui/ShimmerText';
+import KLoader from './components/kokonutui/KLoader';
+import AITextLoading from './components/kokonutui/AITextLoading';
+import { cn } from './lib/utils';
+import { useAutoResizeTextarea } from './hooks/use-auto-resize-textarea';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  MessageCircle, Search, MapPin, Zap, Globe,
+  History, Trash2, Send, X
+} from 'lucide-react';
+import { marked } from 'marked';
+
+marked.setOptions({ async: false });
+
+const NAV_ITEMS = [
+  { id: 'chat' as AppMode, title: 'Chat', icon: <MessageCircle className="w-4 h-4" /> },
+  { id: 'search' as AppMode, title: 'Pesquisa', icon: <Search className="w-4 h-4" /> },
+  { id: 'maps' as AppMode, title: 'Mapas', icon: <MapPin className="w-4 h-4" /> },
+  { id: 'fast-response' as AppMode, title: 'Rapido', icon: <Zap className="w-4 h-4" /> },
+];
 
 const App: React.FC = () => {
   const [appMode, setAppMode] = useState<AppMode>('chat');
   const [geolocation, setGeolocation] = useState<GeolocationPosition | null>(null);
   const [geolocationError, setGeolocationError] = useState<string | null>(null);
 
-  // Chatbot state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const chatSessionRef = useRef<Chat | null>(null);
 
-  // Search grounding state
-  const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<ChatMessage[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
-  // Maps grounding state
-  const [mapsQuery, setMapsQuery] = useState('');
   const [mapsResults, setMapsResults] = useState<ChatMessage[]>([]);
   const [mapsLoading, setMapsLoading] = useState(false);
   const [mapsError, setMapsError] = useState<string | null>(null);
 
-  // Fast response state
   const [fastResponseQuery, setFastResponseQuery] = useState('');
   const [fastResponseResult, setFastResponseResult] = useState<string>('');
   const [fastResponseLoading, setFastResponseLoading] = useState(false);
   const [fastResponseError, setFastResponseError] = useState<string | null>(null);
+  const [fastFocused, setFastFocused] = useState(false);
 
+  const { textareaRef: fastTextareaRef, adjustHeight: fastAdjustHeight } = useAutoResizeTextarea({
+    minHeight: 44,
+    maxHeight: 120,
+  });
 
-  // Initialize chat session on component mount
   useEffect(() => {
     chatSessionRef.current = createChatSession();
   }, []);
 
-  // Load chat history from localStorage on initial mount
   useEffect(() => {
     try {
       const storedHistory = localStorage.getItem(CHAT_HISTORY_STORAGE_KEY);
       if (storedHistory) {
-        const parsedHistory: ChatMessage[] = JSON.parse(storedHistory);
-        setChatMessages(parsedHistory);
+        setChatMessages(JSON.parse(storedHistory));
       }
     } catch (e) {
-      console.error("Failed to load chat history from localStorage:", e);
-      // Optionally clear corrupted history
       localStorage.removeItem(CHAT_HISTORY_STORAGE_KEY);
     }
   }, []);
 
-  // Save chat history to localStorage whenever chatMessages changes
   useEffect(() => {
     try {
       localStorage.setItem(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(chatMessages));
-    } catch (e) {
-      console.error("Failed to save chat history to localStorage:", e);
-    }
+    } catch (e) { /* ignore */ }
   }, [chatMessages]);
 
-  // Request geolocation permission
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setGeolocation({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          });
+          setGeolocation({ latitude: position.coords.latitude, longitude: position.coords.longitude });
           setGeolocationError(null);
         },
         (error) => {
           let msg: string;
           switch (error.code) {
-            case error.PERMISSION_DENIED:
-              msg = GEOLOCATION_ERROR_MESSAGES.PERMISSION_DENIED;
-              break;
-            case error.POSITION_UNAVAILABLE:
-              msg = GEOLOCATION_ERROR_MESSAGES.POSITION_UNAVAILABLE;
-              break;
-            case error.TIMEOUT:
-              msg = GEOLOCATION_ERROR_MESSAGES.TIMEOUT;
-              break;
-            default:
-              msg = GEOLOCATION_ERROR_MESSAGES.UNKNOWN_ERROR;
-              break;
+            case error.PERMISSION_DENIED: msg = GEOLOCATION_ERROR_MESSAGES.PERMISSION_DENIED; break;
+            case error.POSITION_UNAVAILABLE: msg = GEOLOCATION_ERROR_MESSAGES.POSITION_UNAVAILABLE; break;
+            case error.TIMEOUT: msg = GEOLOCATION_ERROR_MESSAGES.TIMEOUT; break;
+            default: msg = GEOLOCATION_ERROR_MESSAGES.UNKNOWN_ERROR; break;
           }
-          console.error("Geolocation error:", error);
           setGeolocationError(msg);
         },
         { enableHighAccuracy: false, timeout: 5000, maximumAge: 0 }
@@ -113,30 +109,19 @@ const App: React.FC = () => {
     try {
       const storedHistory = localStorage.getItem(CHAT_HISTORY_STORAGE_KEY);
       if (storedHistory) {
-        const parsedHistory: ChatMessage[] = JSON.parse(storedHistory);
-        setChatMessages(parsedHistory);
-      } else {
-        alert("Nenhum histórico de chat encontrado.");
+        setChatMessages(JSON.parse(storedHistory));
       }
-    } catch (e) {
-      console.error("Failed to load chat history manually:", e);
-      alert("Erro ao carregar o histórico de chat. Pode estar corrompido.");
-    }
+    } catch (e) { /* ignore */ }
   }, []);
 
   const handleSendChatMessage = useCallback(async (message: string) => {
     if (!chatSessionRef.current) return;
-
     const userMessageId = `user-${Date.now()}`;
     setChatMessages((prev) => [...prev, { id: userMessageId, sender: 'user', text: message }]);
     setChatLoading(true);
     setChatError(null);
-
     const geminiMessageId = `gemini-${Date.now()}`;
-    setChatMessages((prev) => [
-      ...prev,
-      { id: geminiMessageId, sender: 'gemini', text: '', isStreaming: true },
-    ]);
+    setChatMessages((prev) => [...prev, { id: geminiMessageId, sender: 'gemini', text: '', isStreaming: true }]);
 
     try {
       await sendMessageToChatStream(
@@ -144,142 +129,105 @@ const App: React.FC = () => {
         message,
         (textChunk) => {
           setChatMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === geminiMessageId ? { ...msg, text: textChunk } : msg
-            )
+            prev.map((msg) => msg.id === geminiMessageId ? { ...msg, text: textChunk } : msg)
           );
         },
         (groundingChunks) => {
           setChatMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === geminiMessageId ? { ...msg, isStreaming: false, groundingChunks: groundingChunks } : msg
-            )
+            prev.map((msg) => msg.id === geminiMessageId ? { ...msg, isStreaming: false, groundingChunks } : msg)
           );
         },
         (error) => {
           setChatError(error);
           setChatMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === geminiMessageId ? { ...msg, isStreaming: false, text: `Erro: ${error}` } : msg
-            )
+            prev.map((msg) => msg.id === geminiMessageId ? { ...msg, isStreaming: false, text: `Erro: ${error}` } : msg)
           );
         }
       );
     } catch (e: any) {
-      setChatError(e.message || "An unexpected error occurred during chat.");
+      setChatError(e.message || "Erro inesperado.");
       setChatMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === geminiMessageId ? { ...msg, isStreaming: false, text: `Erro: ${e.message || "Erro desconhecido"}` } : msg
-        )
+        prev.map((msg) => msg.id === geminiMessageId ? { ...msg, isStreaming: false, text: `Erro: ${e.message}` } : msg)
       );
     } finally {
       setChatLoading(false);
     }
   }, []);
 
-  const handleSendSearchQuery = useCallback(async () => {
-    if (!searchQuery.trim()) return;
-
-    const userMessageId = `user-search-${Date.now()}`;
-    setSearchResults((prev) => [...prev, { id: userMessageId, sender: 'user', text: searchQuery }]);
+  const handleSendSearchQuery = useCallback(async (query: string) => {
+    if (!query.trim()) return;
+    setSearchResults((prev) => [...prev, { id: `user-search-${Date.now()}`, sender: 'user', text: query }]);
     setSearchLoading(true);
     setSearchError(null);
-
     try {
-      const response = await sendSearchQuery(searchQuery);
-      const geminiMessageId = `gemini-search-${Date.now()}`;
-      setSearchResults((prev) => [
-        ...prev,
-        { id: geminiMessageId, sender: 'gemini', text: response.text, groundingChunks: response.groundingChunks },
-      ]);
+      const response = await sendSearchQuery(query);
+      setSearchResults((prev) => [...prev, { id: `gemini-search-${Date.now()}`, sender: 'gemini', text: response.text, groundingChunks: response.groundingChunks }]);
     } catch (e: any) {
-      setSearchError(e.message || "Failed to fetch search results.");
-      const errorMsgId = `error-search-${Date.now()}`;
-      setSearchResults((prev) => [...prev, { id: errorMsgId, sender: 'gemini', text: `Erro: ${e.message || "Erro desconhecido"}` }]);
+      setSearchError(e.message || "Falha na pesquisa.");
+      setSearchResults((prev) => [...prev, { id: `error-search-${Date.now()}`, sender: 'gemini', text: `Erro: ${e.message}` }]);
     } finally {
       setSearchLoading(false);
-      setSearchQuery('');
     }
-  }, [searchQuery]);
+  }, []);
 
-  const handleSendMapsQuery = useCallback(async () => {
-    if (!mapsQuery.trim()) return;
-
-    if (!geolocation && !geolocationError) {
-      setMapsError("Obtendo sua localização, por favor, aguarde...");
-      return;
-    }
-
-    if (geolocationError) {
-      setMapsError(geolocationError);
-      return;
-    }
-
-    const userMessageId = `user-maps-${Date.now()}`;
-    setMapsResults((prev) => [...prev, { id: userMessageId, sender: 'user', text: mapsQuery }]);
+  const handleSendMapsQuery = useCallback(async (query: string) => {
+    if (!query.trim()) return;
+    if (!geolocation && !geolocationError) { setMapsError("Obtendo sua localizacao..."); return; }
+    if (geolocationError) { setMapsError(geolocationError); return; }
+    setMapsResults((prev) => [...prev, { id: `user-maps-${Date.now()}`, sender: 'user', text: query }]);
     setMapsLoading(true);
     setMapsError(null);
-
     try {
-      const response = await sendMapsQuery(mapsQuery, geolocation || undefined);
-      const geminiMessageId = `gemini-maps-${Date.now()}`;
-      setMapsResults((prev) => [
-        ...prev,
-        { id: geminiMessageId, sender: 'gemini', text: response.text, groundingChunks: response.groundingChunks },
-      ]);
+      const response = await sendMapsQuery(query, geolocation || undefined);
+      setMapsResults((prev) => [...prev, { id: `gemini-maps-${Date.now()}`, sender: 'gemini', text: response.text, groundingChunks: response.groundingChunks }]);
     } catch (e: any) {
-      setMapsError(e.message || "Failed to fetch map information.");
-      const errorMsgId = `error-maps-${Date.now()}`;
-      setMapsResults((prev) => [...prev, { id: errorMsgId, sender: 'gemini', text: `Erro: ${e.message || "Erro desconhecido"}` }]);
+      setMapsError(e.message || "Falha na consulta de mapas.");
+      setMapsResults((prev) => [...prev, { id: `error-maps-${Date.now()}`, sender: 'gemini', text: `Erro: ${e.message}` }]);
     } finally {
       setMapsLoading(false);
-      setMapsQuery('');
     }
-  }, [mapsQuery, geolocation, geolocationError]);
+  }, [geolocation, geolocationError]);
 
   const handleSendFastResponse = useCallback(async () => {
     if (!fastResponseQuery.trim()) return;
-
     setFastResponseResult('');
     setFastResponseLoading(true);
     setFastResponseError(null);
-
     try {
       const response = await sendFastResponse(fastResponseQuery);
       setFastResponseResult(response);
     } catch (e: any) {
-      setFastResponseError(e.message || "Failed to get fast response.");
+      setFastResponseError(e.message || "Falha na resposta rapida.");
     } finally {
       setFastResponseLoading(false);
       setFastResponseQuery('');
+      fastAdjustHeight(true);
     }
-  }, [fastResponseQuery]);
+  }, [fastResponseQuery, fastAdjustHeight]);
 
   const renderContent = () => {
     switch (appMode) {
       case 'chat':
         return (
-          <FeaturePanel
-            title="Chatbot AI"
-            description="Converse com o Gemini para planejar suas férias."
-          >
-            <div className="flex justify-end gap-2 p-4 pt-0">
-              <Button
-                variant="outline"
+          <div className="flex flex-col h-full">
+            {/* Chat toolbar */}
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-stone-100 dark:border-stone-800">
+              <button
                 onClick={handleLoadChatHistory}
                 disabled={chatLoading}
-                size="sm"
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full text-stone-500 dark:text-stone-400 bg-stone-50 dark:bg-stone-800/60 hover:bg-stone-100 dark:hover:bg-stone-700/60 transition-colors"
               >
-                Carregar Histórico
-              </Button>
-              <Button
-                variant="secondary"
+                <History className="w-3.5 h-3.5" />
+                Historico
+              </button>
+              <button
                 onClick={handleClearChatHistory}
                 disabled={chatLoading}
-                size="sm"
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full text-stone-500 dark:text-stone-400 bg-stone-50 dark:bg-stone-800/60 hover:bg-stone-100 dark:hover:bg-stone-700/60 transition-colors"
               >
-                Limpar Histórico
-              </Button>
+                <Trash2 className="w-3.5 h-3.5" />
+                Limpar
+              </button>
             </div>
             <ChatInterface
               messages={chatMessages}
@@ -287,176 +235,194 @@ const App: React.FC = () => {
               loading={chatLoading}
               errorMessage={chatError}
               placeholder="Pergunte sobre destinos, atividades, etc."
-              onClearParentError={() => setChatError(null)} // Pass callback to clear chatError
+              onClearParentError={() => setChatError(null)}
             />
-          </FeaturePanel>
+          </div>
         );
+
       case 'search':
         return (
-          <FeaturePanel
-            title="Pesquisa Google"
-            description="Obtenha informações atualizadas da web para sua viagem."
-          >
-            <ChatInterface
-              messages={searchResults}
-              onSendMessage={(msg) => { setSearchQuery(msg); handleSendSearchQuery(); }}
-              loading={searchLoading}
-              errorMessage={searchError}
-              placeholder="Pesquise sobre eventos recentes, notícias de viagem..."
-              onClearParentError={() => setSearchError(null)}
-            />
-          </FeaturePanel>
+          <ChatInterface
+            messages={searchResults}
+            onSendMessage={(msg) => handleSendSearchQuery(msg)}
+            loading={searchLoading}
+            errorMessage={searchError}
+            placeholder="Pesquise sobre eventos, noticias de viagem..."
+            onClearParentError={() => setSearchError(null)}
+          />
         );
+
       case 'maps':
         return (
-          <FeaturePanel
-            title="Mapas Google"
-            description="Encontre lugares e informações geográficas para seu destino."
-          >
-            <ChatInterface
-              messages={mapsResults}
-              onSendMessage={(msg) => { setMapsQuery(msg); handleSendMapsQuery(); }}
-              loading={mapsLoading}
-              errorMessage={mapsError || geolocationError}
-              placeholder="Encontre restaurantes, hotéis ou pontos turísticos próximos."
-              onClearParentError={() => { setMapsError(null); setGeolocationError(null); }} // Clear both maps and geolocation errors
-            />
-            {geolocationError && (
-              <div className="p-4 bg-red-100 text-red-700 border border-red-200 rounded-md m-4">
-                {geolocationError}
-              </div>
-            )}
-          </FeaturePanel>
+          <ChatInterface
+            messages={mapsResults}
+            onSendMessage={(msg) => handleSendMapsQuery(msg)}
+            loading={mapsLoading}
+            errorMessage={mapsError || geolocationError}
+            placeholder="Encontre restaurantes, hoteis ou pontos turisticos."
+            onClearParentError={() => { setMapsError(null); setGeolocationError(null); }}
+          />
         );
+
       case 'fast-response':
         return (
-          <FeaturePanel
-            title="Respostas Rápidas"
-            description="Obtenha sugestões e informações rápidas com baixa latência."
-          >
-            <div className="flex flex-col h-full">
-              <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
-                {fastResponseQuery && (
-                  <div className="mb-4">
-                    <p className="text-lg font-medium">Sua consulta:</p>
-                    <p className="p-2 bg-gray-100 rounded-md text-gray-800">{fastResponseQuery}</p>
+          <div className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5 custom-scrollbar">
+              {!fastResponseResult && !fastResponseLoading && !fastResponseError && (
+                <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                  <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center mb-4">
+                    <Zap className="w-7 h-7 text-amber-500" />
                   </div>
-                )}
-                <div className="mb-4">
-                  <p className="text-lg font-medium">
-                    Resposta Rápida:
-                    {fastResponseLoading && (
-                      <svg
-                        className="animate-spin h-5 w-5 text-indigo-600 inline-block ml-2"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                      </svg>
-                    )}
+                  <p className="text-lg font-semibold text-stone-800 dark:text-stone-200 font-display">
+                    Respostas instantaneas
                   </p>
-                  {fastResponseError && (
-                    <div className="flex flex-col items-start mt-2 p-3 bg-red-100 border border-red-200 text-red-700 rounded-md">
-                      <p className="font-semibold mb-2">Ops! Algo deu errado:</p>
-                      <p className="text-sm mb-3">{fastResponseError}</p>
-                      <Button onClick={() => setFastResponseError(null)} variant="outline" size="sm" className="bg-red-50 text-red-700 border-red-300 hover:bg-red-100">
-                        Limpar Erro
-                      </Button>
-                    </div>
-                  )}
-                  {fastResponseResult && <p className="p-2 bg-blue-50 rounded-md text-gray-800">{fastResponseResult}</p>}
+                  <p className="text-sm text-stone-400 dark:text-stone-500 mt-1 max-w-sm">
+                    Faca uma pergunta rapida sobre viagens e receba respostas em segundos.
+                  </p>
                 </div>
-              </div>
-              <div className="p-4 md:p-6 border-t border-gray-200 sticky bottom-0 bg-white">
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Faça uma pergunta rápida..."
-                    value={fastResponseQuery}
-                    onChange={(e) => setFastResponseQuery(e.target.value)}
-                    onKeyPress={(e) => { if (e.key === 'Enter') handleSendFastResponse(); }}
-                    disabled={fastResponseLoading}
+              )}
+
+              {fastResponseLoading && (
+                <div className="flex items-center justify-center h-full">
+                  <KLoader
+                    title="Gerando resposta..."
+                    subtitle="Usando o modelo de baixa latencia"
+                    size="md"
                   />
-                  <Button onClick={handleSendFastResponse} loading={fastResponseLoading} disabled={fastResponseLoading} size="md">
-                    Obter Resposta
-                  </Button>
+                </div>
+              )}
+
+              {fastResponseError && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 mx-auto max-w-md"
+                  role="alert"
+                >
+                  <div className="flex-1">
+                    <p className="font-medium text-sm text-red-600 dark:text-red-400">Algo deu errado</p>
+                    <p className="text-xs text-red-500/80 dark:text-red-400/60 mt-0.5">{fastResponseError}</p>
+                  </div>
+                  <button
+                    onClick={() => setFastResponseError(null)}
+                    className="text-red-400 hover:text-red-600 transition-colors p-1"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </motion.div>
+              )}
+
+              {fastResponseResult && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-4 md:p-5 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-100 dark:border-stone-700/50 text-sm leading-relaxed prose-travel"
+                  dangerouslySetInnerHTML={{ __html: marked.parse(fastResponseResult) as string }}
+                />
+              )}
+            </div>
+
+            {/* Fast response input - KokonutUI style */}
+            <div className="px-3 py-3 md:px-5 md:py-4 border-t border-stone-200 dark:border-stone-700/50 bg-white dark:bg-stone-900">
+              <div
+                className={cn(
+                  "relative flex flex-col rounded-2xl border transition-all duration-200",
+                  fastFocused
+                    ? "border-amber-400 dark:border-amber-500 ring-2 ring-amber-500/20"
+                    : "border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800/50"
+                )}
+                onClick={() => fastTextareaRef.current?.focus()}
+              >
+                <textarea
+                  ref={fastTextareaRef}
+                  value={fastResponseQuery}
+                  placeholder="Faca uma pergunta rapida..."
+                  className="w-full resize-none bg-transparent px-4 pt-3 pb-2 text-sm text-stone-800 dark:text-stone-200 placeholder:text-stone-400 dark:placeholder:text-stone-500 border-none outline-none focus:ring-0"
+                  onFocus={() => setFastFocused(true)}
+                  onBlur={() => setFastFocused(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendFastResponse();
+                    }
+                  }}
+                  onChange={(e) => {
+                    setFastResponseQuery(e.target.value);
+                    fastAdjustHeight();
+                  }}
+                  disabled={fastResponseLoading}
+                  aria-label="Pergunta rapida"
+                />
+                <div className="flex items-center justify-end px-3 pb-2">
+                  <motion.button
+                    onClick={handleSendFastResponse}
+                    disabled={fastResponseLoading || !fastResponseQuery.trim()}
+                    type="button"
+                    whileTap={{ scale: 0.95 }}
+                    className={cn(
+                      "rounded-full p-2 transition-all duration-200",
+                      fastResponseQuery.trim()
+                        ? "bg-amber-500 text-white hover:bg-amber-600 shadow-sm"
+                        : "bg-stone-100 dark:bg-stone-800 text-stone-300 dark:text-stone-600"
+                    )}
+                    aria-label="Enviar pergunta"
+                  >
+                    <Send className="w-4 h-4" />
+                  </motion.button>
                 </div>
               </div>
             </div>
-          </FeaturePanel>
+          </div>
         );
+
       default:
         return null;
     }
   };
 
   return (
-    <div className="flex flex-col h-screen md:h-[90vh] lg:h-[80vh] w-full max-w-4xl bg-white rounded-lg shadow-xl overflow-hidden">
-      <header className="p-4 md:p-6 bg-indigo-700 text-white flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <Icon name="travel" className="w-8 h-8" />
-          <h1 className="text-2xl md:text-3xl font-extrabold">{APP_TITLE}</h1>
+    <div className="flex flex-col h-screen w-full max-w-2xl mx-auto overflow-hidden bg-white dark:bg-stone-900 shadow-2xl">
+      {/* Header */}
+      <header className="flex items-center gap-3 px-5 py-4 bg-gradient-to-r from-teal-700 to-teal-600 dark:from-teal-800 dark:to-teal-700">
+        <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
+          <Globe className="w-5 h-5 text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <ShimmerText
+            text={APP_TITLE}
+            className="text-lg !text-white [&>span]:!from-white [&>span]:!via-teal-200 [&>span]:!to-white"
+          />
+          <p className="text-xs text-teal-100/70 mt-0.5">
+            Seu assistente inteligente de viagens
+          </p>
         </div>
       </header>
 
-      <nav className="flex bg-indigo-600 text-white border-b border-indigo-700 overflow-x-auto sticky top-0 z-10">
-        <Button
-          variant={appMode === 'chat' ? 'secondary' : 'ghost'}
-          onClick={() => setAppMode('chat')}
-          className="flex-1 min-w-[120px] rounded-none py-3 md:py-4 border-r border-indigo-500 text-white hover:bg-indigo-500 focus:ring-offset-indigo-600"
-        >
-          <div className="flex flex-col items-center">
-            <Icon name="voice_chat" className="w-5 h-5 md:w-6 md:h-6" />
-            <span className="text-xs md:text-sm mt-1">Chatbot AI</span>
-          </div>
-        </Button>
-        <Button
-          variant={appMode === 'search' ? 'secondary' : 'ghost'}
-          onClick={() => setAppMode('search')}
-          className="flex-1 min-w-[120px] rounded-none py-3 md:py-4 border-r border-indigo-500 text-white hover:bg-indigo-500 focus:ring-offset-indigo-600"
-        >
-          <div className="flex flex-col items-center">
-            <Icon name="google" className="w-5 h-5 md:w-6 md:h-6" />
-            <span className="text-xs md:text-sm mt-1">Pesquisa</span>
-          </div>
-        </Button>
-        <Button
-          variant={appMode === 'maps' ? 'secondary' : 'ghost'}
-          onClick={() => setAppMode('maps')}
-          className="flex-1 min-w-[120px] rounded-none py-3 md:py-4 border-r border-indigo-500 text-white hover:bg-indigo-500 focus:ring-offset-indigo-600"
-        >
-          <div className="flex flex-col items-center">
-            <Icon name="google_pin" className="w-5 h-5 md:w-6 md:h-6" />
-            <span className="text-xs md:text-sm mt-1">Mapas</span>
-          </div>
-        </Button>
-        <Button
-          variant={appMode === 'fast-response' ? 'secondary' : 'ghost'}
-          onClick={() => setAppMode('fast-response')}
-          className="flex-1 min-w-[120px] rounded-none py-3 md:py-4 text-white hover:bg-indigo-500 focus:ring-offset-indigo-600"
-        >
-          <div className="flex flex-col items-center">
-            <Icon name="bolt" className="w-5 h-5 md:w-6 md:h-6" />
-            <span className="text-xs md:text-sm mt-1">Rápido</span>
-          </div>
-        </Button>
-      </nav>
+      {/* Navigation - SmoothTab */}
+      <div className="px-3 py-2 bg-white dark:bg-stone-900 border-b border-stone-100 dark:border-stone-800">
+        <SmoothTab
+          items={NAV_ITEMS}
+          defaultTabId="chat"
+          activeColor="bg-teal-600"
+          onChange={(tabId) => setAppMode(tabId as AppMode)}
+        />
+      </div>
 
-      <main className="flex-1 overflow-hidden">{renderContent()}</main>
+      {/* Content */}
+      <main className="flex-1 overflow-hidden">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={appMode}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+            className="h-full"
+          >
+            {renderContent()}
+          </motion.div>
+        </AnimatePresence>
+      </main>
     </div>
   );
 };

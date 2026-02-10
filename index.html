@@ -6,6 +6,34 @@
     <title>Smart Travel Assistant</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+              display: ['Playfair Display', 'Georgia', 'serif'],
+            },
+            keyframes: {
+              'shimmer-slide': {
+                to: { transform: 'translate(calc(100cqw - 100%), 0)' },
+              },
+              'spin-around': {
+                '0%': { transform: 'translateZ(0) rotate(0)' },
+                '15%, 35%': { transform: 'translateZ(0) rotate(90deg)' },
+                '65%, 85%': { transform: 'translateZ(0) rotate(270deg)' },
+                '100%': { transform: 'translateZ(0) rotate(360deg)' },
+              },
+            },
+            animation: {
+              'shimmer-slide': 'shimmer-slide var(--speed) ease-in-out infinite alternate',
+              'spin-around': 'spin-around calc(var(--speed) * 2) infinite linear',
+            },
+          },
+        },
+      }
+    </script>
 <script type="importmap">
 {
   "imports": {
@@ -19,9 +47,9 @@
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+<body class="h-screen bg-stone-100 dark:bg-stone-950">
     <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root" class="w-full max-w-4xl bg-white rounded-lg shadow-xl overflow-hidden md:p-6 lg:p-8"></div>
+    <div id="root" class="h-full w-full"></div>
     <script type="module" src="/index.tsx"></script>
 </body>
 </html>
